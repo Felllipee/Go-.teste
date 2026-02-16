@@ -4,19 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>fastShorts | Anime Shortener</title>
+    <title>fastShorts | Encurtador Cinematográfico</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <script>
-        // SHIM: Define process.env para evitar erros fatais
+        // Corrige o erro 'process is not defined' que trava o React
         window.process = { env: { API_KEY: '' } };
         
-        // Capturador de erros para ajudar o usuário a ver o que deu errado no console (F12)
-        window.addEventListener('error', function(event) {
-            console.error("Erro detectado:", event.message, "em", event.filename);
-        }, true);
+        // Log de erro amigável no console
+        window.onerror = function(msg, url, line) {
+            console.log("🎬 Erro no Catálogo: " + msg + " em " + url + ":" + line);
+            return false;
+        };
     </script>
     <style>
         body {
@@ -24,44 +25,46 @@
             background-color: #141414;
             color: white;
             margin: 0;
-            overflow: hidden;
+            overflow-x: hidden;
         }
+        /* Efeito de carregamento estilo Netflix */
         #root:empty::before {
-            content: 'Iniciando sistema...';
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            font-size: 1.5rem;
-            font-weight: 900;
-            color: #E50914;
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
-            animation: pulse 1.5s infinite;
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            margin: -25px 0 0 -25px;
+            border: 3px solid rgba(229, 9, 20, 0.3);
+            border-top-color: #e50914;
+            border-radius: 50%;
+            animation: spin 1s ease-in-out infinite;
         }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
         /* Netflix Scrollbar */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #141414; }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        .netflix-row::-webkit-scrollbar { display: none; }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "lucide-react": "https://esm.sh/lucide-react@^0.564.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
-    "recharts": "https://esm.sh/recharts@^3.7.0"
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0",
+    "@google/genai": "https://esm.sh/@google/genai@1.41.0"
   }
 }
 </script>
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+    <!-- Script principal -->
+    <script type="module" src="index.tsx"></script>
 </body>
 </html>
