@@ -1,5 +1,8 @@
 {
-  "name": "fastShorts -Encurtador de link",
-  "description": "A fully functional URL shortener dashboard with a cinematic Netflix-inspired UI, featuring AI-powered alias suggestions and analytics.",
-  "requestFramePermissions": []
+  "name": "FastPlayer IPTV - Netflix Edition",
+  "description": "Um reprodutor de listas M3U moderno e veloz com interface cinematográfica inspirada na Netflix.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }

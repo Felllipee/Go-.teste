@@ -4,62 +4,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastShorts | Produza Seus Links</title>
+    <title>FastPlayer IPTV | Netflix Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    
     <script>
-        // Mock do process para evitar erros em bibliotecas que o utilizam no navegador
-        window.process = { 
-            env: { 
-                API_KEY: '' // Será injetado automaticamente pelo ambiente se disponível
-            } 
-        };
-        
-        // Captura de erros global para debug
-        window.onerror = function(msg, url, line) {
-            console.error("Erro Global: ", msg, " em ", url, ":", line);
-            return false;
-        };
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        netflixRed: '#E50914',
+                        netflixBlack: '#141414',
+                        netflixGray: '#181818',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
     </script>
+
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #141414;
-            color: white;
-            margin: 0;
-            overflow-x: hidden;
-        }
-        
-        #root:empty::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 50px;
-            height: 50px;
-            margin: -25px 0 0 -25px;
-            border: 4px solid rgba(229, 9, 20, 0.1);
-            border-top-color: #e50914;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        
-        ::-webkit-scrollbar { width: 10px; }
-        ::-webkit-scrollbar-track { background: #141414; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 5px; }
-        ::-webkit-scrollbar-thumb:hover { background: #444; }
-        
+        body { font-family: 'Inter', sans-serif; background-color: #141414; color: white; margin: 0; overflow-x: hidden; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .animate-fadeIn { animation: fadeIn 0.6s ease-out forwards; }
-        
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .animate-slideUp { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .hero-vignette { background: linear-gradient(77deg, rgba(0,0,0,.6) 0, rgba(0,0,0,0) 85%); }
+        .bottom-vignette { background: linear-gradient(180deg, transparent, rgba(20,20,20,.5) 70%, #141414 100%); }
+        .channel-card { transition: transform 0.3s ease, z-index 0.3s ease; }
+        .channel-card:hover { transform: scale(1.15); z-index: 50; }
+        video::-webkit-media-controls { display: none !important; }
     </style>
 <script type="importmap">
 {
@@ -71,7 +46,367 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- Importante: data-type="module" ajuda o Babel a lidar com imports ESM -->
-    <script type="text/babel" data-presets="react,typescript" data-type="module" src="index.tsx"></script>
+
+    <script type="text/babel" data-presets="react,typescript">
+        import React, { useState, useEffect, useRef, useMemo } from 'https://esm.sh/react@19.0.0';
+        import ReactDOM from 'https://esm.sh/react-dom@19.0.0/client';
+        import { 
+            Play, Info, Search, Bell, ChevronDown, 
+            Plus, Check, Volume2, VolumeX, Maximize, 
+            Settings, Heart, List, Tv, X, Menu
+        } from 'https://esm.sh/lucide-react@0.460.0';
+
+        const STORAGE_KEY = 'fastplayer_config';
+
+        const App = () => {
+            const [view, setView] = useState('PROFILES'); 
+            const [user, setUser] = useState(null);
+            const [playlistUrl, setPlaylistUrl] = useState('');
+            const [channels, setChannels] = useState([]);
+            const [activeChannel, setActiveChannel] = useState(null);
+            const [favorites, setFavorites] = useState([]);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [isMuted, setIsMuted] = useState(false);
+            const videoRef = useRef(null);
+            const hlsRef = useRef(null);
+
+            // Carregar dados iniciais
+            useEffect(() => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    setPlaylistUrl(data.url || '');
+                    setFavorites(data.favorites || []);
+                    if (data.url) loadPlaylist(data.url);
+                }
+            }, []);
+
+            const saveConfig = (url, favs) => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ url, favorites: favs }));
+            };
+
+            const loadPlaylist = async (url) => {
+                if (!url) return;
+                setLoading(true);
+                try {
+                    const response = await fetch(url);
+                    const text = await response.text();
+                    const parsed = parseM3U(text);
+                    setChannels(parsed);
+                    setPlaylistUrl(url);
+                    saveConfig(url, favorites);
+                    if (view === 'HOME' && parsed.length > 0 && !activeChannel) {
+                        // setActiveChannel(parsed[0]);
+                    }
+                } catch (e) {
+                    alert("Erro ao carregar lista. Verifique o link ou o CORS.");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const parseM3U = (data) => {
+                const lines = data.split('\n');
+                const result = [];
+                let currentItem = {};
+
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line.startsWith('#EXTINF:')) {
+                        const nameMatch = line.match(/,(.*)$/);
+                        const logoMatch = line.match(/tvg-logo="(.*?)"/);
+                        const groupMatch = line.match(/group-title="(.*?)"/);
+                        
+                        currentItem = {
+                            name: nameMatch ? nameMatch[1] : 'Canal Sem Nome',
+                            logo: logoMatch ? logoMatch[1] : `https://via.placeholder.com/300x200/181818/E50914?text=TV`,
+                            group: groupMatch ? groupMatch[1] : 'Geral'
+                        };
+                    } else if (line.startsWith('http')) {
+                        currentItem.url = line;
+                        currentItem.id = Math.random().toString(36).substr(2, 9);
+                        result.push(currentItem);
+                        currentItem = {};
+                    }
+                }
+                return result;
+            };
+
+            // Player HLS logic
+            useEffect(() => {
+                if (activeChannel && videoRef.current) {
+                    if (hlsRef.current) hlsRef.current.destroy();
+                    
+                    if (Hls.isSupported()) {
+                        const hls = new Hls();
+                        hls.loadSource(activeChannel.url);
+                        hls.attachMedia(videoRef.current);
+                        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            videoRef.current.play();
+                        });
+                        hlsRef.current = hls;
+                    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+                        videoRef.current.src = activeChannel.url;
+                        videoRef.current.addEventListener('loadedmetadata', () => {
+                            videoRef.current.play();
+                        });
+                    }
+                }
+            }, [activeChannel]);
+
+            const categories = useMemo(() => {
+                const groups = [...new Set(channels.map(c => c.group))];
+                return groups.map(g => ({
+                    name: g,
+                    items: channels.filter(c => c.group === g && c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                })).filter(cat => cat.items.length > 0);
+            }, [channels, searchQuery]);
+
+            const toggleFavorite = (id) => {
+                const newFavs = favorites.includes(id) ? favorites.filter(f => f !== id) : [...favorites, id];
+                setFavorites(newFavs);
+                saveConfig(playlistUrl, newFavs);
+            };
+
+            if (view === 'PROFILES') {
+                return (
+                    <div className="h-screen flex flex-col items-center justify-center bg-netflixBlack animate-fadeIn">
+                        <h1 className="text-4xl md:text-6xl font-medium mb-12">Quem está assistindo?</h1>
+                        <div className="flex flex-wrap justify-center gap-8">
+                            {['Felipe', 'Kids', 'Adultos'].map((name, i) => (
+                                <button key={name} onClick={() => { setUser(name); setView('HOME'); }} className="group flex flex-col items-center gap-4">
+                                    <div className={`w-32 h-32 md:w-40 md:h-40 rounded bg-gray-800 border-4 border-transparent group-hover:border-white transition-all overflow-hidden transform group-hover:scale-105 shadow-2xl`}>
+                                        <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${name}&backgroundColor=${i === 0 ? 'E50914' : '22d3ee'}`} className="w-full h-full" />
+                                    </div>
+                                    <span className="text-gray-500 text-xl group-hover:text-white">{name}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <button className="mt-16 border border-gray-600 text-gray-500 px-8 py-2 uppercase tracking-widest hover:border-white hover:text-white transition-all">Gerenciar Perfis</button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-netflixBlack text-white">
+                    {/* Header Estilo Netflix */}
+                    <header className="fixed top-0 w-full z-[100] transition-all duration-500 px-6 md:px-12 py-4 flex items-center justify-between bg-gradient-to-b from-black/90 to-transparent">
+                        <div className="flex items-center gap-10">
+                            <div className="text-netflixRed text-3xl font-black tracking-tighter cursor-pointer" onClick={() => setActiveChannel(null)}>FASTPLAYER</div>
+                            <nav className="hidden lg:flex gap-6 text-sm font-medium text-gray-300">
+                                <button className="hover:text-white transition-colors">Início</button>
+                                <button className="hover:text-white transition-colors">Canais TV</button>
+                                <button className="hover:text-white transition-colors">Minha Lista</button>
+                            </nav>
+                        </div>
+                        <div className="flex items-center gap-6">
+                            <div className="relative group">
+                                <Search className="w-5 h-5 cursor-pointer" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Canais, gêneros..." 
+                                    className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 group-hover:w-64 w-0 transition-all bg-black/80 border border-white/20 rounded px-10 py-1 outline-none text-sm"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                            <Bell className="w-5 h-5 cursor-pointer" />
+                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('PROFILES')}>
+                                <div className="w-8 h-8 rounded bg-netflixRed overflow-hidden">
+                                    <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${user}`} />
+                                </div>
+                                <ChevronDown className="w-4 h-4" />
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Conteúdo Principal */}
+                    <main>
+                        {!channels.length ? (
+                            <div className="h-screen flex flex-col items-center justify-center px-6">
+                                <Tv className="w-20 h-20 text-netflixRed mb-6 animate-pulse" />
+                                <h2 className="text-4xl font-black mb-8 text-center italic uppercase tracking-tighter">Sua próxima experiência começa aqui</h2>
+                                <div className="w-full max-w-xl bg-netflixGray p-8 rounded-lg shadow-2xl border border-white/5">
+                                    <p className="text-gray-400 mb-6 font-medium">Insira o link da sua lista M3U para começar a assistir.</p>
+                                    <div className="flex flex-col md:flex-row gap-3">
+                                        <input 
+                                            type="url" 
+                                            placeholder="https://exemplo.com/lista.m3u" 
+                                            className="flex-1 bg-netflixBlack border border-gray-700 rounded px-4 py-3 outline-none focus:border-netflixRed transition-all"
+                                            value={playlistUrl}
+                                            onChange={e => setPlaylistUrl(e.target.value)}
+                                        />
+                                        <button 
+                                            onClick={() => loadPlaylist(playlistUrl)}
+                                            disabled={loading}
+                                            className="bg-white text-black font-black px-8 py-3 rounded hover:bg-gray-200 transition-all uppercase text-sm"
+                                        >
+                                            {loading ? 'Carregando...' : 'Importar'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="relative pt-0 pb-20">
+                                {/* Billboard / Hero */}
+                                <div className="relative h-[85vh] w-full overflow-hidden">
+                                    {activeChannel ? (
+                                        <div className="absolute inset-0 bg-black">
+                                            <video 
+                                                ref={videoRef}
+                                                className="w-full h-full object-contain"
+                                                muted={isMuted}
+                                                autoPlay
+                                                playsInline
+                                            />
+                                            {/* Custom Controls Overlay */}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-netflixBlack via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-end p-12">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h1 className="text-5xl font-black italic uppercase tracking-tighter mb-2">{activeChannel.name}</h1>
+                                                        <p className="text-netflixRed font-bold uppercase tracking-widest text-xs">{activeChannel.group}</p>
+                                                    </div>
+                                                    <div className="flex gap-4">
+                                                        <button onClick={() => setIsMuted(!isMuted)} className="p-4 bg-white/10 rounded-full hover:bg-white/20">
+                                                            {isMuted ? <VolumeX /> : <Volume2 />}
+                                                        </button>
+                                                        <button onClick={() => videoRef.current?.requestFullscreen()} className="p-4 bg-white/10 rounded-full hover:bg-white/20">
+                                                            <Maximize />
+                                                        </button>
+                                                        <button onClick={() => setActiveChannel(null)} className="p-4 bg-netflixRed rounded-full hover:bg-red-700">
+                                                            <X />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <img 
+                                                src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=2069&auto=format&fit=crop" 
+                                                className="w-full h-full object-cover brightness-50"
+                                            />
+                                            <div className="absolute inset-0 hero-vignette"></div>
+                                            <div className="absolute inset-0 bottom-vignette"></div>
+                                            
+                                            <div className="absolute bottom-[20%] left-6 md:left-12 max-w-2xl">
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <div className="bg-netflixRed text-white font-black px-1.5 py-0.5 text-[10px] rounded-sm">N</div>
+                                                    <span className="text-gray-400 font-bold tracking-[0.4em] text-[10px] uppercase">FastPlayer Original</span>
+                                                </div>
+                                                <h1 className="text-6xl md:text-8xl font-black mb-6 tracking-tighter uppercase italic leading-[0.85]">TUDO <br/> EM UM</h1>
+                                                <p className="text-xl mb-8 font-medium text-gray-200 drop-shadow-md">Sua lista completa organizada com a melhor interface do mundo. Canais, filmes e séries em alta definição.</p>
+                                                
+                                                <div className="flex gap-4">
+                                                    <button 
+                                                        onClick={() => setActiveChannel(channels[Math.floor(Math.random() * channels.length)])}
+                                                        className="bg-white text-black px-10 py-3 rounded font-black flex items-center gap-3 hover:bg-gray-200 transition-all text-lg"
+                                                    >
+                                                        <Play className="fill-current w-6 h-6" /> Assistir
+                                                    </button>
+                                                    <button className="bg-gray-500/50 text-white px-10 py-3 rounded font-black flex items-center gap-3 hover:bg-gray-500/30 transition-all text-lg backdrop-blur-md">
+                                                        <Info className="w-6 h-6" /> Mais Informações
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Fileiras de Canais */}
+                                <div className="relative z-10 -mt-24 pl-6 md:pl-12 space-y-12">
+                                    {/* Favoritos */}
+                                    {favorites.length > 0 && (
+                                        <div className="animate-fadeIn">
+                                            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                                                <Heart className="w-5 h-5 text-netflixRed fill-current" /> Minha Lista
+                                            </h2>
+                                            <div className="flex gap-2 overflow-x-auto no-scrollbar pr-12 pb-8">
+                                                {channels.filter(c => favorites.includes(c.id)).map(channel => (
+                                                    <ChannelCard 
+                                                        key={channel.id} 
+                                                        channel={channel} 
+                                                        onPlay={() => setActiveChannel(channel)}
+                                                        isFavorite={true}
+                                                        onToggleFavorite={() => toggleFavorite(channel.id)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Categorias M3U */}
+                                    {categories.map((cat, idx) => (
+                                        <div key={idx} className="animate-fadeIn">
+                                            <h2 className="text-xl font-bold mb-4 hover:text-netflixRed transition-colors cursor-pointer inline-flex items-center gap-2 group">
+                                                {cat.name} 
+                                                <span className="text-[10px] text-gray-500 font-black opacity-0 group-hover:opacity-100 transition-opacity">VER TUDO</span>
+                                            </h2>
+                                            <div className="flex gap-2 overflow-x-auto no-scrollbar pr-12 pb-8">
+                                                {cat.items.slice(0, 15).map(channel => (
+                                                    <ChannelCard 
+                                                        key={channel.id} 
+                                                        channel={channel} 
+                                                        onPlay={() => setActiveChannel(channel)}
+                                                        isFavorite={favorites.includes(channel.id)}
+                                                        onToggleFavorite={() => toggleFavorite(channel.id)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Rodapé Cinematográfico */}
+                    <footer className="px-6 md:px-12 py-20 bg-netflixBlack border-t border-white/5 opacity-50">
+                        <div className="max-w-4xl mx-auto flex flex-col items-center gap-8">
+                            <div className="text-netflixRed text-2xl font-black italic tracking-tighter">FASTPLAYER</div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-[10px] font-bold uppercase tracking-widest w-full text-center">
+                                <span>Privacidade</span>
+                                <span>Ajuda</span>
+                                <span>Termos</span>
+                                <span>Contato</span>
+                            </div>
+                            <p className="text-[9px] font-black uppercase tracking-[0.6em]">© 2024 FASTPLAYER PRODUCTIONS - THE FUTURE OF STREAMING</p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const ChannelCard = ({ channel, onPlay, isFavorite, onToggleFavorite }) => (
+            <div 
+                className="flex-none w-48 md:w-64 aspect-video relative rounded-md overflow-hidden bg-netflixGray channel-card cursor-pointer group shadow-lg"
+                onClick={onPlay}
+            >
+                <img src={channel.logo} className="w-full h-full object-cover" alt={channel.name} loading="lazy" />
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-between p-3">
+                    <div className="flex justify-end">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+                            className={`p-1.5 rounded-full border border-white/40 hover:border-white transition-all ${isFavorite ? 'bg-netflixRed border-none' : ''}`}
+                        >
+                            {isFavorite ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        </button>
+                    </div>
+                    <div>
+                        <h3 className="font-black text-xs uppercase italic truncate leading-none">{channel.name}</h3>
+                        <p className="text-[8px] text-netflixRed font-bold uppercase mt-1">{channel.group}</p>
+                        <div className="flex gap-2 mt-3">
+                            <div className="bg-white text-black p-1.5 rounded-full"><Play className="w-3 h-3 fill-current" /></div>
+                            <div className="bg-netflixGray text-white p-1.5 rounded-full border border-white/20"><Info className="w-3 h-3" /></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
