@@ -10,14 +10,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <script>
-        // SHIM CRUCIAL: Impede que o app trave por falta do objeto 'process'
-        window.process = window.process || { env: { API_KEY: '' } };
+        // SHIM: Define process.env para evitar erros fatais
+        window.process = { env: { API_KEY: '' } };
         
-        // Captura erros globais para ajudar no debug
-        window.onerror = function(msg, url, line, col, error) {
-            console.error("Erro Crítico detectado:", msg, "em", url, "linha:", line);
-            return false;
-        };
+        // Capturador de erros para ajudar o usuário a ver o que deu errado no console (F12)
+        window.addEventListener('error', function(event) {
+            console.error("Erro detectado:", event.message, "em", event.filename);
+        }, true);
     </script>
     <style>
         body {
@@ -25,28 +24,7 @@
             background-color: #141414;
             color: white;
             margin: 0;
-            overflow-x: hidden;
-        }
-        /* Netflix-style scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #141414;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #444;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+            overflow: hidden;
         }
         #root:empty::before {
             content: 'Iniciando sistema...';
@@ -61,7 +39,13 @@
             letter-spacing: 0.2em;
             animation: pulse 1.5s infinite;
         }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        
+        /* Netflix Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #141414; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
 <script type="importmap">
 {
@@ -75,11 +59,9 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
-<script type="module" src="/index.tsx"></script>
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>
