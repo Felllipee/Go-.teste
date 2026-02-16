@@ -1,7 +1,6 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@1.41.0";
 
-// Inicialização segura
 const getAI = () => {
   const apiKey = process.env.API_KEY || '';
   return new GoogleGenAI({ apiKey });
@@ -12,26 +11,12 @@ export const suggestAlias = async (url: string): Promise<string[]> => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Sugira 3 nomes curtos (aliases) criativos e cativantes no estilo Netflix (como 'serie-vicio', 'pipoca-play', 'spoiler-link') para o seguinte URL: ${url}. Retorne apenas um array JSON de strings.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.STRING
-          }
-        }
-      },
+      contents: `Sugira 3 nomes curtos e impactantes estilo Netflix para este URL: ${url}. Ex: pipoca-play, spoiler-link. Retorne apenas JSON ["a", "b", "c"].`,
+      config: { responseMimeType: "application/json" }
     });
-
-    const text = response.text;
-    if (text) {
-      return JSON.parse(text);
-    }
-    return [];
+    return JSON.parse(response.text);
   } catch (error) {
-    console.error("Erro ao sugerir alias:", error);
-    return ["link-vip", "play-agora", "acesso-premium"];
+    return ["play-agora", "acesso-premium", "link-vip"];
   }
 };
 
@@ -40,24 +25,11 @@ export const analyzeLinkMetadata = async (url: string): Promise<{ title: string;
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Analise este URL: ${url}. 
-      1. Crie um título cinematográfico impactante (máx 25 chars).
-      2. Atribua um gênero de "streaming" (Ex: Ação, Drama, Documentário, Comédia, Suspense, Sci-Fi).
-      Retorne em JSON.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            category: { type: Type.STRING }
-          },
-          required: ["title", "category"]
-        }
-      }
+      contents: `Analise este URL: ${url}. Crie um título de filme (max 25 chars) e um gênero de streaming. Retorne JSON {title, category}.`,
+      config: { responseMimeType: "application/json" }
     });
     return JSON.parse(response.text);
   } catch (error) {
-    return { title: "Novo Lançamento", category: "Originais" };
+    return { title: "Lançamento Exclusivo", category: "Séries Originais" };
   }
 };
