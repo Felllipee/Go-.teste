@@ -11,7 +11,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <script>
-        window.process = { env: { API_KEY: '' } };
+        // Mock do process para evitar erros em bibliotecas que o utilizam no navegador
+        window.process = { 
+            env: { 
+                API_KEY: '' // Será injetado automaticamente pelo ambiente se disponível
+            } 
+        };
+        
+        // Captura de erros global para debug
+        window.onerror = function(msg, url, line) {
+            console.error("Erro Global: ", msg, " em ", url, ":", line);
+            return false;
+        };
     </script>
     <style>
         body {
@@ -60,6 +71,7 @@
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel" data-presets="react,typescript" src="index.tsx"></script>
+    <!-- Importante: data-type="module" ajuda o Babel a lidar com imports ESM -->
+    <script type="text/babel" data-presets="react,typescript" data-type="module" src="index.tsx"></script>
 </body>
 </html>

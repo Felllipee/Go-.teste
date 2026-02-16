@@ -8,7 +8,9 @@ import {
 } from 'https://esm.sh/lucide-react@0.460.0';
 import { GoogleGenAI } from "https://esm.sh/@google/genai@1.41.0";
 
-// --- Types ---
+// --- Configuração e Tipos ---
+const STORAGE_KEY = 'fastshorts_v2_storage';
+
 interface ShortLink {
   id: string;
   originalUrl: string;
@@ -21,10 +23,15 @@ interface ShortLink {
   createdAt: string;
 }
 
-// --- AI Service Logic ---
+// --- Serviços de IA ---
+const getAIClient = () => {
+  // Use process.env.API_KEY directly as per the @google/genai coding guidelines.
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
 const getAIResponse = async (url: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIClient();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Context: You are a Netflix content manager. Analyze this URL: ${url}. 
@@ -41,7 +48,7 @@ const getAIResponse = async (url: string) => {
 
 const suggestAlias = async (url: string): Promise<string[]> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIClient();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Sugira 3 nomes curtos e impactantes estilo Netflix para este URL: ${url}. Ex: pipoca-play, spoiler-link. Retorne apenas JSON ["a", "b", "c"].`,
@@ -53,9 +60,9 @@ const suggestAlias = async (url: string): Promise<string[]> => {
   }
 };
 
-// --- Main App Component ---
+// --- Componente Principal ---
 const App = () => {
-  const [view, setView] = useState('PROFILES'); // PROFILES, HOME, CATALOG
+  const [view, setView] = useState('PROFILES'); 
   const [user, setUser] = useState<{name: string, avatar: string} | null>(null);
   const [links, setLinks] = useState<ShortLink[]>([]);
   const [urlInput, setUrlInput] = useState('');
@@ -73,22 +80,25 @@ const App = () => {
     { id: '3', name: 'Visitante', avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Guest&backgroundColor=dc2626' },
   ];
 
-  const STORAGE_KEY = 'fastshorts_v2_storage';
-
   useEffect(() => {
-    // Load existing links
+    // Carregar links do storage
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setLinks(JSON.parse(saved));
+    if (saved) {
+        try {
+            setLinks(JSON.parse(saved));
+        } catch(e) {
+            console.error("Erro ao carregar storage", e);
+        }
+    }
 
-    // Scroll listener for header
+    // Listener de scroll para o header
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
 
-    // Redirection detection logic (?c=XXXX)
+    // Lógica de redirecionamento (?c=XXXX)
     const params = new URLSearchParams(window.location.search);
     const code = params.get('c');
     if (code) {
-      // Decode potential GitHub Pages routing
       const cleanCode = code.replace(/\/$/, '').split('/').pop();
       const currentDb: ShortLink[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
       const target = currentDb.find(l => l.shortCode === cleanCode || l.alias === cleanCode);
@@ -97,22 +107,14 @@ const App = () => {
         setRedirecting(target.title);
         target.clicks = (target.clicks || 0) + 1;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentDb));
-        // Cinematic delay for redirection
         setTimeout(() => window.location.href = target.originalUrl, 2500);
       } else {
-        // Clear URL if invalid
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
 
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  useEffect(() => {
-    if (links.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(links));
-    }
-  }, [links]);
 
   const handleShorten = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,11 +133,14 @@ const App = () => {
         title: metadata.title,
         category: metadata.category,
         clicks: 0,
-        poster: `https://picsum.photos/seed/${Math.random()}/600/900`,
+        poster: `https://picsum.photos/seed/${Math.random()}/600/400`,
         createdAt: new Date().toISOString()
       };
 
-      setLinks(prev => [newLink, ...prev]);
+      const updatedLinks = [newLink, ...links];
+      setLinks(updatedLinks);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedLinks));
+      
       setUrlInput('');
       setAliasInput('');
       setSuggestions([]);
@@ -156,7 +161,6 @@ const App = () => {
   };
 
   const copyToClipboard = (id: string, code: string) => {
-    // Correct URL for GitHub Pages or local
     const baseUrl = window.location.origin + window.location.pathname;
     const separator = baseUrl.includes('?') ? '&' : '?';
     const fullUrl = `${baseUrl}${separator}c=${code}`;
@@ -180,7 +184,6 @@ const App = () => {
     l.shortCode.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Redirection Screen
   if (redirecting) {
     return (
       <div className="h-screen bg-black flex flex-col items-center justify-center animate-fadeIn text-center p-8">
@@ -202,7 +205,6 @@ const App = () => {
     );
   }
 
-  // Profiles Selection Screen
   if (view === 'PROFILES') {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-[#141414] animate-fadeIn">
@@ -230,7 +232,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#141414] text-white selection:bg-red-600 selection:text-white font-sans overflow-x-hidden">
-      {/* Navigation */}
       <header className={`fixed top-0 w-full z-[100] transition-all duration-500 flex items-center justify-between px-6 md:px-12 py-3 md:py-4 ${scrolled ? 'bg-[#141414] shadow-2xl border-b border-white/5' : 'bg-gradient-to-b from-black/90 to-transparent'}`}>
         <div className="flex items-center gap-6 md:gap-12">
           <div onClick={() => setView('HOME')} className="text-red-600 text-2xl md:text-3xl font-black tracking-tighter cursor-pointer select-none transform transition-transform active:scale-95">FASTSHORTS</div>
@@ -245,7 +246,7 @@ const App = () => {
             <Search className="w-5 h-5 absolute left-3 text-gray-400 group-focus-within:text-white transition-colors" />
             <input 
               type="text" 
-              placeholder="Títulos, aliases..." 
+              placeholder="Títulos..." 
               className="bg-black/40 border border-white/10 rounded-full pl-10 pr-4 py-1.5 text-sm focus:w-64 w-40 transition-all outline-none focus:border-white/40"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -261,7 +262,6 @@ const App = () => {
 
       {view === 'HOME' && (
         <main className="animate-fadeIn relative">
-          {/* Billboard / Banner Section */}
           <div className="relative h-[85vh] md:h-[95vh] w-full flex items-center overflow-hidden">
             <div className="absolute inset-0">
               <img 
@@ -282,124 +282,56 @@ const App = () => {
                 Corte <br className="hidden md:block"/> Final
               </h1>
               <p className="text-lg md:text-2xl mb-10 font-medium text-gray-200 drop-shadow-lg leading-relaxed max-w-2xl">
-                O premiado encurtador de links que transforma seus cliques em grandes lançamentos. Com tecnologia IA para curadoria instantânea de metadados.
+                O premiado encurtador de links que transforma seus cliques em grandes lançamentos.
               </p>
               
-              {/* Shorten Bar - Refined for Desktop */}
               <div className="flex flex-col gap-4 max-w-3xl">
                 <form onSubmit={handleShorten} className="flex flex-col md:flex-row gap-2">
-                  <div className="flex-1 relative">
-                    <input 
-                      type="url" 
-                      required
-                      placeholder="Insira o link para produção..." 
-                      className="w-full bg-[#333]/80 hover:bg-[#444]/80 border border-transparent focus:bg-[#444] rounded-md px-6 py-4 outline-none text-lg transition-all font-medium placeholder:text-gray-400"
-                      value={urlInput}
-                      onChange={(e) => setUrlInput(e.target.value)}
-                    />
-                  </div>
+                  <input 
+                    type="url" 
+                    required
+                    placeholder="Cole seu link aqui..." 
+                    className="flex-1 bg-[#333]/80 hover:bg-[#444]/80 border border-transparent focus:bg-[#444] rounded-md px-6 py-4 outline-none text-lg transition-all font-medium"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                  />
                   <button 
                     type="submit"
                     disabled={loading || !urlInput}
                     className="bg-white text-black hover:bg-gray-200 px-10 py-4 rounded-md font-bold flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50 text-lg"
                   >
-                    {loading ? (
-                      <div className="w-6 h-6 border-4 border-black/20 border-t-black rounded-full animate-spin"></div>
-                    ) : (
-                      <><Play className="w-6 h-6 fill-current" /> Assistir</>
-                    )}
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setView('CATALOG')}
-                    className="bg-gray-500/50 hover:bg-gray-500/70 text-white px-8 py-4 rounded-md font-bold flex items-center justify-center gap-3 transition-all text-lg backdrop-blur-md"
-                  >
-                    <Info className="w-6 h-6" /> Minha Lista
+                    {loading ? "GERANDO..." : <><Play className="w-6 h-6 fill-current" /> Encurtar</>}
                   </button>
                 </form>
 
                 <div className="flex flex-wrap items-center gap-4 bg-black/20 p-4 rounded-lg backdrop-blur-sm border border-white/5">
-                  <div className="flex-1 min-w-[200px] relative group">
-                    <input 
-                      type="text" 
-                      placeholder="Alias personalizado (opcional)" 
-                      className="w-full bg-transparent border-b border-gray-600 focus:border-white outline-none py-1 text-sm font-bold transition-all"
-                      value={aliasInput}
-                      onChange={(e) => setAliasInput(e.target.value)}
-                    />
-                    <Sparkles className="absolute right-0 top-1 w-4 h-4 text-yellow-500 animate-pulse" />
-                  </div>
-                  <div className="h-4 w-px bg-white/10 hidden md:block"></div>
-                  <button 
-                    type="button" 
-                    onClick={fetchSuggestions}
-                    className="text-[10px] uppercase font-black tracking-widest text-red-500 hover:text-red-400 transition-colors"
-                  >
-                    Sugerir com IA
-                  </button>
+                  <input 
+                    type="text" 
+                    placeholder="Alias opcional" 
+                    className="flex-1 min-w-[150px] bg-transparent border-b border-gray-600 focus:border-white outline-none py-1 text-sm font-bold"
+                    value={aliasInput}
+                    onChange={(e) => setAliasInput(e.target.value)}
+                  />
+                  <button type="button" onClick={fetchSuggestions} className="text-[10px] uppercase font-black text-red-500 hover:text-red-400">Sugerir IA</button>
                 </div>
-
-                {suggestions.length > 0 && (
-                  <div className="flex gap-2 animate-fadeIn">
-                    {suggestions.map(s => (
-                      <button 
-                        key={s} 
-                        onClick={() => setAliasInput(s)}
-                        className="bg-white/10 hover:bg-white/20 px-3 py-1 rounded text-[10px] font-bold uppercase border border-white/5 transition-all"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Featured Rows */}
           <div className="px-6 md:px-12 -mt-20 md:-mt-32 relative z-20 pb-40 space-y-12">
              <section>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl md:text-2xl font-bold tracking-tight">Em Alta na Minha Lista</h2>
-                </div>
-                <div className="flex gap-2 md:gap-4 overflow-x-auto no-scrollbar pb-6 scroll-smooth">
-                    {links.length > 0 ? links.slice(0, 10).map((link, idx) => (
-                      <div 
-                        key={link.id} 
-                        className="flex-none group relative w-44 md:w-64 aspect-video rounded-md overflow-hidden cursor-pointer transition-all duration-300 hover:scale-110 hover:z-50 shadow-2xl"
-                      >
-                        <img src={link.poster} className="w-full h-full object-cover" alt={link.title} />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                           <div className="flex items-center gap-2 mb-2">
-                              <button onClick={() => copyToClipboard(link.id, link.alias || link.shortCode)} className="bg-white text-black p-2 rounded-full hover:bg-gray-200">
-                                <Copy className="w-3 h-3" />
-                              </button>
-                              <button className="bg-black/50 border border-white/40 text-white p-2 rounded-full">
-                                <Plus className="w-3 h-3" />
-                              </button>
-                           </div>
-                           <p className="font-bold text-xs uppercase truncate leading-none mb-1">{link.title}</p>
-                           <div className="flex items-center gap-2 text-[10px] font-bold">
-                              <span className="text-green-500">{90 + idx}% Relevante</span>
-                              <span className="border border-white/40 px-1 rounded-sm text-[8px]">4K</span>
-                           </div>
+                <h2 className="text-xl md:text-2xl font-bold mb-4">Em Alta na Minha Lista</h2>
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6">
+                    {links.map((link, idx) => (
+                      <div key={link.id} onClick={() => setView('CATALOG')} className="flex-none w-44 md:w-64 aspect-video rounded-md overflow-hidden cursor-pointer transition-all hover:scale-105 shadow-2xl group relative">
+                        <img src={link.poster} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col justify-end p-4 transition-opacity">
+                            <p className="font-bold text-xs uppercase truncate">{link.title}</p>
+                            <p className="text-[10px] text-red-600">/{link.alias || link.shortCode}</p>
                         </div>
                       </div>
-                    )) : (
-                      <div className="w-full py-12 border border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center text-gray-600 font-bold uppercase text-xs tracking-widest gap-2">
-                         <LayoutGrid className="opacity-20 w-8 h-8" />
-                         Seu catálogo está vazio
-                      </div>
-                    )}
-                </div>
-             </section>
-
-             <section>
-                <h2 className="text-xl md:text-2xl font-bold tracking-tight mb-4">Ação e Aventura</h2>
-                <div className="flex gap-2 md:gap-4 overflow-x-auto no-scrollbar pb-6 scroll-smooth">
-                   {[1,2,3,4,5,6].map(i => (
-                     <div key={i} className="flex-none w-44 md:w-64 aspect-video rounded-md overflow-hidden bg-[#222] animate-pulse"></div>
-                   ))}
+                    ))}
+                    {links.length === 0 && <div className="text-gray-600 text-xs py-10 uppercase font-black opacity-30">Nenhum link produzido</div>}
                 </div>
              </section>
           </div>
@@ -407,131 +339,43 @@ const App = () => {
       )}
 
       {view === 'CATALOG' && (
-        <div className="pt-24 md:pt-32 px-6 md:px-12 min-h-screen pb-40 animate-fadeIn max-w-[1600px] mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 border-b border-white/5 pb-8">
-             <div>
-                <h2 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic">Minha Lista</h2>
-                <p className="text-gray-500 text-sm font-bold mt-2 uppercase tracking-widest">{filteredLinks.length} Títulos Encontrados</p>
-             </div>
-             <div className="flex gap-3 w-full md:w-auto">
-               <button 
-                onClick={() => setView('HOME')}
-                className="flex-1 md:flex-none bg-white text-black px-6 py-2.5 rounded font-bold text-sm uppercase flex items-center justify-center gap-2 hover:bg-gray-200 transition-all active:scale-95"
-               >
-                 <Plus className="w-5 h-5" /> Adicionar
-               </button>
-               <div className="bg-black/20 border border-white/10 flex rounded p-1">
-                  <button className="p-2 hover:bg-white/5 rounded text-white"><LayoutGrid className="w-4 h-4" /></button>
-                  <button className="p-2 hover:bg-white/5 rounded text-gray-500"><List className="w-4 h-4" /></button>
-               </div>
-             </div>
+        <div className="pt-24 md:pt-32 px-6 md:px-12 min-h-screen pb-40 animate-fadeIn">
+          <div className="flex justify-between items-end mb-12 border-b border-white/5 pb-8">
+             <h2 className="text-3xl md:text-5xl font-black italic uppercase">Minha Lista</h2>
+             <button onClick={() => setView('HOME')} className="bg-white text-black px-6 py-2 rounded font-bold uppercase text-sm">Novo Lançamento</button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-4 gap-y-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-8">
             {filteredLinks.map(link => (
-              <div key={link.id} className="group relative transition-all duration-300">
-                 <div className="aspect-video relative rounded-md overflow-hidden bg-[#1a1a1a] shadow-lg group-hover:shadow-red-600/10 transition-all">
-                    <img src={link.poster} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500" alt={link.title} />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                       <div className="flex items-center gap-2 mb-4">
-                          <button 
-                            onClick={() => copyToClipboard(link.id, link.alias || link.shortCode)}
-                            className="bg-white text-black p-3 rounded-full hover:scale-110 transition-transform shadow-2xl"
-                            title="Copiar Link"
-                          >
-                            {copiedId === link.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                          </button>
-                          <button 
-                            onClick={() => deleteLink(link.id)}
-                            className="bg-black/50 border border-white/40 text-white p-3 rounded-full hover:scale-110 transition-transform shadow-2xl"
-                            title="Remover"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                       </div>
-                    </div>
-                    <div className="absolute top-2 left-2 flex gap-1">
-                       {link.clicks > 10 && <div className="bg-red-600 px-1.5 py-0.5 rounded-sm font-black text-[8px] uppercase italic">Top 10</div>}
-                       <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded-sm font-black text-[8px] uppercase tracking-tighter">{link.category}</div>
+              <div key={link.id} className="bg-[#1a1a1a] rounded overflow-hidden group border border-white/5 hover:border-white/20 transition-all">
+                 <div className="aspect-video relative overflow-hidden">
+                    <img src={link.poster} className="w-full h-full object-cover opacity-80" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity">
+                       <button onClick={() => copyToClipboard(link.id, link.alias || link.shortCode)} className="bg-white text-black p-3 rounded-full">
+                          {copiedId === link.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                       </button>
+                       <button onClick={() => deleteLink(link.id)} className="bg-red-600 text-white p-3 rounded-full">
+                          <Trash2 className="w-4 h-4" />
+                       </button>
                     </div>
                  </div>
-                 
-                 <div className="mt-3">
-                    <div className="flex justify-between items-start mb-1">
-                        <h3 className="font-bold text-sm md:text-base uppercase truncate pr-2 group-hover:text-red-500 transition-colors">{link.title}</h3>
-                        <span className="text-[9px] text-gray-500 font-bold border border-gray-800 px-1 rounded-sm mt-1">HD</span>
-                    </div>
-                    <p className="text-[11px] text-red-600 font-black mb-3 uppercase tracking-tighter break-all opacity-80">
-                      /{link.alias || link.shortCode}
-                    </p>
-                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest pt-2 border-t border-white/5">
-                        <span className="flex items-center gap-1.5 text-gray-500">
-                          <History className="w-3 h-3" /> {link.clicks || 0} Clicks
-                        </span>
-                        <span className="text-green-500 flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" /> 98%
-                        </span>
+                 <div className="p-4">
+                    <h3 className="font-bold text-sm uppercase truncate mb-1">{link.title}</h3>
+                    <p className="text-[10px] text-red-600 font-black mb-4 break-all">/{link.alias || link.shortCode}</p>
+                    <div className="flex justify-between items-center pt-3 border-t border-white/5 text-[10px] font-black text-gray-500">
+                        <span>{link.clicks} CLICKS</span>
+                        <TrendingUp className="w-3 h-3 text-green-500" />
                     </div>
                  </div>
               </div>
             ))}
           </div>
-
-          {filteredLinks.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-40 opacity-10">
-               <Share2 className="w-32 h-32 mb-6" />
-               <p className="text-3xl font-black uppercase tracking-tighter italic">Nenhum resultado</p>
-            </div>
-          )}
         </div>
       )}
-
-      {/* Global Footer */}
-      <footer className="bg-[#141414] border-t border-white/5 px-6 md:px-12 py-20 text-gray-500 mt-20">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex gap-6 mb-10 text-gray-400">
-             <Share2 className="w-6 h-6 cursor-pointer hover:text-white transition-colors" />
-             <ExternalLink className="w-6 h-6 cursor-pointer hover:text-white transition-colors" />
-             <MoreHorizontal className="w-6 h-6 cursor-pointer hover:text-white transition-colors" />
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16 text-xs md:text-sm font-medium">
-            <div className="flex flex-col gap-4">
-              <span className="hover:underline cursor-pointer">Privacidade</span>
-              <span className="hover:underline cursor-pointer">Relações com investidores</span>
-              <span className="hover:underline cursor-pointer">Avisos legais</span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <span className="hover:underline cursor-pointer">Central de ajuda</span>
-              <span className="hover:underline cursor-pointer">Carreiras</span>
-              <span className="hover:underline cursor-pointer">Cookies</span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <span className="hover:underline cursor-pointer">Gift Cards</span>
-              <span className="hover:underline cursor-pointer">Termos de uso</span>
-              <span className="hover:underline cursor-pointer">Empresa</span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <span className="hover:underline cursor-pointer">Imprensa</span>
-              <span className="hover:underline cursor-pointer">Contato</span>
-            </div>
-          </div>
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-10 border-t border-white/5">
-             <div className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-40">
-                © 2024-2025 FASTSHORTS STUDIOS. ALL CLICKS RESERVED.
-             </div>
-             <button className="border border-gray-700 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-white hover:text-white transition-all">
-                CÓDIGO DE SERVIÇO: FS-AI-99X
-             </button>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
 
-// Render final app
-const rootElement = document.getElementById('root');
-if (rootElement) {
-  const root = ReactDOM.createRoot(rootElement);
-  root.render(<App />);
-}
+// Renderização final
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
