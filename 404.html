@@ -3,23 +3,27 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>fastShorts | Redirecionando...</title>
+    <title>FastShorts | Redirecionando...</title>
     <script type="text/javascript">
-      // GitHub Pages 404 Hack para tratar URLs limpas em subdiretórios
-      // Como o seu repositório se chama "go", precisamos manter 1 segmento do path
-      var pathSegmentsToKeep = 1;
-
+      // GitHub Pages 404 Redirect Hack
+      // This allows single page apps to use clean URLs
       var l = window.location;
+      // We look for the last segment which is the shortCode/alias
+      var path = l.pathname.split('/').filter(Boolean);
+      var code = path.length > 0 ? path[path.length - 1] : '';
+      
+      // Redirect to index with query param
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?c=' +
-        l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+        l.pathname.split('/').slice(0, -path.length).join('/') + '/?c=' + code +
         (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
         l.hash
       );
     </script>
   </head>
   <body style="background-color: #141414;">
-    <!-- Tela preta rápida antes do redirect -->
+    <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: #e50914; font-family: sans-serif; font-weight: 900; font-style: italic; font-size: 2rem; letter-spacing: -2px;">
+      FASTSHORTS
+    </div>
   </body>
 </html>
