@@ -4,13 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>fastShorts | Painel Administrativo</title>
+    <title>fastShorts | O Netflix dos Seus Links</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <script>
+        // Setup environment for the Gemini SDK in the browser
         window.process = { env: { API_KEY: '' } };
     </script>
     <style>
@@ -21,26 +22,38 @@
             margin: 0;
             overflow-x: hidden;
         }
+        
         #root:empty::before {
             content: '';
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 60px;
-            height: 60px;
-            margin: -30px 0 0 -30px;
-            border: 4px solid rgba(229, 9, 20, 0.2);
+            width: 70px;
+            height: 70px;
+            margin: -35px 0 0 -35px;
+            border: 5px solid rgba(229, 9, 20, 0.1);
             border-top-color: #e50914;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 0.7s cubic-bezier(0.5, 0, 0.5, 1) infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #141414; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+        
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .animate-slideUp { animation: slideUp 0.8s ease-out forwards; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fadeIn { animation: fadeIn 0.8s ease-out forwards; }
+        
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slideUp { animation: slideUp 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+        .billboard-overlay {
+            background: linear-gradient(77deg, rgba(0,0,0,.6) 0, rgba(0,0,0,0) 85%);
+        }
     </style>
 <script type="importmap">
 {
@@ -52,7 +65,6 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- Carregamos o index.tsx como text/babel para o Babel processar tudo sem erro de MIME -->
     <script type="text/babel" data-presets="react,typescript" src="index.tsx"></script>
 </body>
 </html>
