@@ -4,15 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>fastShorts | Encurtador Netflix</title>
+    <title>fastShorts | Painel Administrativo</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Babel para transformar TSX no navegador e evitar erro de MIME type -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <script>
-        // Define process.env para o SDK do Gemini não quebrar
         window.process = { env: { API_KEY: '' } };
     </script>
     <style>
@@ -23,7 +21,6 @@
             margin: 0;
             overflow-x: hidden;
         }
-        /* Netflix style loading */
         #root:empty::before {
             content: '';
             position: absolute;
@@ -38,11 +35,12 @@
             animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #141414; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slideUp { animation: slideUp 0.8s ease-out forwards; }
     </style>
 <script type="importmap">
 {
@@ -54,8 +52,7 @@
 </head>
 <body>
     <div id="root"></div>
-    
-    <!-- Carregando como text/babel para o Babel compilar o TSX/TS no navegador -->
+    <!-- Carregamos o index.tsx como text/babel para o Babel processar tudo sem erro de MIME -->
     <script type="text/babel" data-presets="react,typescript" src="index.tsx"></script>
 </body>
 </html>
